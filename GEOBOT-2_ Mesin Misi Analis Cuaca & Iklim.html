@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GEOBOT-2: Mesin Misi Analis Cuaca &amp; Iklim</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:radial-gradient(ellipse at top,#064e3b 0%,#022c22 45%,#0f172a 100%);background-attachment:fixed;color:#d1fae5;min-height:100vh}
+.hd{font-family:'Chakra Petch','Plus Jakarta Sans',sans-serif}
+.card{background:rgba(2,44,34,.72);border:1px solid #065f46;border-radius:14px;box-shadow:0 0 24px rgba(52,211,153,.08)}
+input,select{background:#022c22;border:1px solid #065f46;border-radius:8px;color:#ecfdf5;padding:.6rem .8rem;width:100%}
+input:focus,select:focus,button:focus-visible{outline:2px solid #34d399;outline-offset:2px}
+.btn{background:#34d399;color:#022c22;font-weight:800;border-radius:10px;padding:.75rem 1.4rem;transition:.15s}
+.btn:hover{background:#6ee7b7;box-shadow:0 0 18px rgba(52,211,153,.5)}
+.opt{display:flex;gap:.6rem;align-items:flex-start;border:1px solid #065f46;border-radius:10px;padding:.7rem .9rem;margin-bottom:.5rem;cursor:pointer;background:#022c22}
+.opt:hover{border-color:#34d399}
+.opt.ok{border-color:#34d399;background:#064e3b}.opt.no{border-color:#f87171;background:#450a0a}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.bot{animation:bob 2.4s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.bot{animation:none}}
+</style>
+</head>
+<body>
+<button id="mute" class="fixed right-3 z-50 card px-3 py-2 text-sm" style="top:calc(env(safe-area-inset-top,0px) + .75rem)" aria-label="Suara">🔊 Suara</button>
+<main class="max-w-3xl mx-auto p-4 pt-14" id="app"></main>
+<script>
+const $=s=>document.querySelector(s), app=$('#app');
+let AC=null, muted=false;
+function tone(f,d,t='sine',v=.15,when=0){if(muted)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain(),s=AC.currentTime+when;o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,s);g.gain.exponentialRampToValueAtTime(.001,s+d);o.connect(g);g.connect(AC.destination);o.start(s);o.stop(s+d)}catch(e){}}
+const sClick=()=>tone(660,.07,'square',.08);
+const sOk=()=>[523,659,784,1047].forEach((f,i)=>tone(f,.18,'triangle',.18,i*.1));
+const sNo=()=>{tone(150,.35,'sawtooth',.15);tone(110,.35,'sawtooth',.15,.12)};
+$('#mute').onclick=()=>{muted=!muted;$('#mute').textContent=muted?'🔇 Senyap':'🔊 Suara';if(!muted)sClick()};
+
+const DAYS=['Senin','Selasa','Rabu'];
+const sel=(id)=>`<select id="${id}"><option value="">Pilih...</option>${DAYS.map(d=>`<option>${d}</option>`).join('')}</select>`;
+const selX=(id,a)=>`<select id="${id}"><option value="">Pilih alat...</option>${a.map(d=>`<option>${d}</option>`).join('')}</select>`;
+const num=(u)=>`<div class="flex items-center gap-2"><input id="n" type="number" step="any" placeholder="Ketik angka..."><span class="hd w-16">${u}</span></div>`;
+const choice=(o)=>o.map((t,i)=>`<label class="opt"><input type="radio" name="c" value="${i}" class="mt-1 w-auto" style="width:auto"><span>${t}</span></label>`).join('');
+const val=id=>($('#'+id)||{}).value||'';
+const nv=()=>parseFloat(String(val('n')).replace(',','.'));
+const pick=()=>{const c=document.querySelector('input[name=c]:checked');return c?+c.value:-1};
+
+const R=[
+{topic:'Menafsirkan data cuaca harian',t:'Mencocokkan Suasana Cuaca',
+ q:'Pasangkan deskripsi cuaca dengan hari yang sesuai pada data BMKG.',
+ ui:()=>`<p class="mb-1">(a) Dingin basah, awan mendung tebal, hujan lebat 45 mm.</p>${sel('a')}<p class="mt-3 mb-1">(b) Panas terik 33°C, udara kering, langit cerah tanpa hujan.</p>${sel('b')}`,
+ ok:()=>val('a')==='Rabu'&&val('b')==='Senin',
+ fb:'(a) adalah Rabu: suhu 24°C, kelembapan 92%, awan Cumulonimbus (8/8), hujan 45 mm. (b) adalah Senin: suhu 33°C, kelembapan 55%, cerah (1/8), tanpa hujan.'},
+{topic:'Menghitung rata-rata suhu',t:'Hitung Cepat Rata-rata Suhu',
+ q:'Berapa suhu rata-rata tiga hari? Hitung (33 + 29 + 24) ÷ 3.',ui:()=>num('°C'),
+ ok:()=>nv()>=28.6&&nv()<=28.7,fb:'Jumlah suhu = 86, dibagi 3 hari = 28,67°C. Rata-rata menggambarkan kondisi suhu umum selama periode pengamatan.'},
+{topic:'Menghitung rata-rata kelembapan',t:'Hitung Rata-rata Kelembapan',
+ q:'Berapa kelembapan udara rata-rata tiga hari? Hitung (55 + 75 + 92) ÷ 3.',ui:()=>num('%'),
+ ok:()=>nv()>=73.5&&nv()<=74.5,fb:'Jumlah kelembapan = 222, dibagi 3 = 74%. Nilai ini tergolong lembap karena naik tajam pada hari Rabu.'},
+{topic:'Membaca grafik perubahan suhu',t:'Arah Garis Grafik Suhu',
+ q:'Bagaimana arah garis grafik suhu dari Senin ke Rabu?',
+ ui:()=>choice(['Garis datar mendatar, suhu tidak berubah','Garis miring menurun tajam ke bawah, suhu mendingin dari 33°C ke 24°C','Garis miring naik ke atas, suhu menghangat','Garis naik lalu turun membentuk puncak']),
+ ok:()=>pick()===1,fb:'Suhu turun dari 33°C, ke 29°C, lalu 24°C. Selisihnya 9°C sehingga garis grafik menurun tajam.'},
+{topic:'Hubungan suhu, kelembapan, dan hujan',t:'Logika Sebab-Akibat',
+ q:'Mengapa suhu yang turun membuat kelembapan naik drastis dari 55% ke 92%?',
+ ui:()=>choice(['Udara dingin lebih sulit menampung uap air, sehingga cepat jenuh dan siap menjadi hujan','Udara dingin menghasilkan lebih banyak uap air dari laut','Tekanan udara turun sehingga air menguap hilang','Awan Cumulonimbus menyerap seluruh uap air dari tanah']),
+ ok:()=>pick()===0,fb:'Kemampuan udara menampung uap air mengecil saat suhu turun. Udara menjadi jenuh, uap air mengembun menjadi awan, lalu jatuh sebagai hujan.'},
+{topic:'Gradien suhu menurut Braak',t:'Recall Rumus Ketinggian Braak',
+ q:'Pantai (0 mdpl) bersuhu 28°C. Berapa suhu di bukit setinggi 1.000 m? Petunjuk: tiap naik 100 m suhu turun 0,6°C.',ui:()=>num('°C'),
+ ok:()=>Math.abs(nv()-22)<.05,fb:'1.000 m = 10 × 100 m, jadi turun 10 × 0,6 = 6°C. Suhu bukit = 28 − 6 = 22°C.'},
+{topic:'Alat pengukur unsur cuaca',t:'Pasangkan Alat Ukur Cuaca BMKG',
+ q:'Pilih alat yang tepat untuk setiap unsur cuaca.',
+ ui:()=>{const a=['Anemometer','Barometer','Ombrometer'];return `<p class="mb-1">Kecepatan angin</p>${selX('a1',a)}<p class="mt-3 mb-1">Tekanan udara</p>${selX('a2',a)}<p class="mt-3 mb-1">Curah hujan</p>${selX('a3',a)}`},
+ ok:()=>val('a1')==='Anemometer'&&val('a2')==='Barometer'&&val('a3')==='Ombrometer',
+ fb:'Anemometer mengukur kecepatan angin, barometer mengukur tekanan udara, ombrometer mengukur curah hujan.'},
+{topic:'Hukum Buys Ballot',t:'Hukum Buys Ballot',
+ q:'Ke arah mana angin membelok di Belahan Bumi Utara (BBU) akibat rotasi bumi?',
+ ui:()=>choice(['Membelok ke KIRI','Membelok ke KANAN','Tidak membelok, lurus saja','Berbalik arah 180°']),
+ ok:()=>pick()===1,fb:'Akibat rotasi bumi (efek Coriolis), angin di BBU membelok ke kanan, sedangkan di BBS membelok ke kiri.'},
+{topic:'Angin darat dan angin laut',t:'Konsep Angin Nelayan',
+ q:'Angin apa yang dimanfaatkan nelayan tradisional saat berangkat melaut pada malam hari?',
+ ui:()=>choice(['Angin Laut, karena laut lebih cepat dingin','Angin Darat, karena darat lebih cepat dingin sehingga bertekanan tinggi','Angin Muson Barat','Angin Fohn']),
+ ok:()=>pick()===1,fb:'Malam hari daratan lebih cepat dingin, tekanannya tinggi. Angin bertiup dari darat ke laut (angin darat), membantu perahu berangkat.'},
+{topic:'Mitigasi bencana cuaca bagi petani',t:'Solusi Mitigasi Petani',
+ q:'Keputusan terbaik petani agar gabah jemuran tidak terendam banjir hujan lebat lagi?',
+ ui:()=>choice(['Menjemur lebih banyak gabah agar sebagian pasti kering','Menunggu langit gelap, baru memindahkan gabah','Rutin mengecek prakiraan cuaca resmi BMKG dan memantau awan sebelum menjemur padi skala besar','Menjemur hanya saat hari Senin']),
+ ok:()=>pick()===2,fb:'Prakiraan BMKG dan pengamatan awan membantu petani menentukan waktu jemur yang aman sehingga kerugian dapat dicegah.'}
+];
+
+let S={nama:'',kelas:'',absen:''},i=0,res=[],done=false;
+
+function login(){
+ app.innerHTML=`<div class="card p-6 mt-4"><div class="text-center"><div class="bot text-7xl" aria-hidden="true">🤖</div>
+ <h1 class="hd text-3xl font-bold text-emerald-300 mt-2">GEOBOT-2</h1><p class="text-emerald-400 hd">Mesin Misi Analis Cuaca &amp; Iklim</p>
+ <p class="text-sm mt-2 text-emerald-200/80">Evaluasi Geografi Fase E / Kelas X, Pertemuan 2: Data Cuaca Sekunder &amp; Dinamika Atmosfer</p></div>
+ <div class="mt-6 space-y-3"><div><label class="text-sm" for="nm">Nama siswa</label><input id="nm" placeholder="Ketik nama lengkap..."></div>
+ <div><label class="text-sm" for="kl">Kelas</label><input id="kl" placeholder="Ketik kelas (contoh: X-1 / X-E)..."></div>
+ <div><label class="text-sm" for="ab">Nomor absen</label><input id="ab" type="number" min="1" max="60" placeholder="Hanya angka (contoh: 15)..."></div>
+ <p id="er" class="text-red-400 text-sm min-h-[1.25rem]"></p>
+ <button id="go" class="btn w-full">Mulai Ronde 1 →</button></div></div>`;
+ $('#go').onclick=()=>{sClick();const n=val('nm').trim(),k=val('kl').trim(),a=parseInt(val('ab'),10);
+  if(!n||!k||!(a>=1&&a<=60)){$('#er').textContent='Isi nama, kelas, dan nomor absen (angka 1 sampai 60) terlebih dahulu.';sNo();return}
+  S={nama:n,kelas:k,absen:a};i=0;res=[];play()};
+}
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function play(){
+ done=false;const r=R[i],score=res.filter(Boolean).length*10;
+ app.innerHTML=`<div class="card p-3 mb-3 flex flex-wrap gap-x-4 gap-y-1 justify-between text-sm items-center">
+ <span><b>${esc(S.nama)}</b> | Kelas ${esc(S.kelas)} | Absen ${S.absen}</span>
+ <span class="hd text-emerald-300">RONDE ${String(i+1).padStart(2,'0')} / 10 | Skor ${score}</span></div>
+ <div class="card p-3 mb-3 overflow-x-auto"><p class="hd text-emerald-300 text-sm mb-2">Data BMKG Wilayah A (LKPD 2)</p>
+ <table class="w-full text-xs sm:text-sm min-w-[480px]"><thead class="text-emerald-400 text-left"><tr><th>Hari</th><th>Suhu</th><th>Lembap</th><th>Tekanan</th><th>Awan</th><th>Hujan</th></tr></thead><tbody>
+ <tr><td>Senin</td><td>33°C</td><td>55%</td><td>1008 mb</td><td>Cerah (1/8)</td><td>0 mm</td></tr>
+ <tr><td>Selasa</td><td>29°C</td><td>75%</td><td>1010 mb</td><td>Berawan (5/8)</td><td>2 mm</td></tr>
+ <tr><td>Rabu</td><td>24°C</td><td>92%</td><td>1012 mb</td><td>Cumulonimbus (8/8)</td><td>45 mm</td></tr></tbody></table></div>
+ <div class="card p-5"><h2 class="hd text-xl text-emerald-300">${r.t}</h2><p class="mt-2 mb-4">${r.q}</p><div id="ui">${r.ui()}</div>
+ <p id="er" class="text-red-400 text-sm mt-2 min-h-[1.25rem]"></p><div id="fb"></div>
+ <button id="act" class="btn mt-3 w-full sm:w-auto">Kunci Jawaban ✓</button></div>`;
+ $('#act').onclick=act;
+}
+function filled(){const t=R[i];
+ if(document.querySelector('input[name=c]'))return pick()>=0;
+ if($('#n'))return !isNaN(nv());
+ return [...document.querySelectorAll('#ui select')].every(s=>s.value)}
+function act(){sClick();
+ if(!done){
+  if(!filled()){$('#er').textContent='Lengkapi jawabanmu dulu sebelum mengunci.';return}
+  $('#er').textContent='';const ok=R[i].ok();res[i]=ok;done=true;ok?sOk():sNo();
+  document.querySelectorAll('#ui input,#ui select').forEach(e=>e.disabled=true);
+  const c=document.querySelector('input[name=c]:checked');if(c)c.closest('.opt').classList.add(ok?'ok':'no');
+  $('#fb').innerHTML=`<div class="mt-4 p-4 rounded-lg border ${ok?'border-emerald-400 bg-emerald-900/40':'border-red-400 bg-red-950/50'}"><p class="font-extrabold">${ok?'Benar! +10 poin':'Belum tepat. Pelajari penjelasan berikut.'}</p><p class="mt-1 text-sm">${R[i].fb}</p></div>`;
+  $('#act').textContent=i<9?'Lanjut Ronde Berikutnya →':'Lihat Rapor Akhir 🏁';
+ }else{ if(i<9){i++;play()}else report() }
+}
+function report(){
+ const n=res.filter(Boolean).length,sc=n*10,ok=sc>=70;ok?sOk():sNo();
+ app.innerHTML=`<div class="card p-6 mt-4 text-center"><div class="text-6xl">${ok?'🏆':'📘'}</div>
+ <h1 class="hd text-2xl text-emerald-300 mt-2">${ok?'Selamat':'Terima kasih sudah berjuang'}, ${esc(S.nama)}!</h1>
+ <p class="text-sm text-emerald-200/80">Kelas ${esc(S.kelas)} | Absen ${S.absen}</p>
+ <div class="grid sm:grid-cols-3 gap-3 mt-5">
+ <div class="card p-4"><p class="text-xs">Total skor</p><p class="hd text-4xl text-emerald-300">${sc}<span class="text-base">/100</span></p></div>
+ <div class="card p-4"><p class="text-xs">Ronde tuntas</p><p class="hd text-4xl text-emerald-300">${n}<span class="text-base"> dari 10</span></p></div>
+ <div class="card p-4"><p class="text-xs">Status akhir</p><p class="hd text-3xl ${ok?'text-emerald-300':'text-red-400'}">${ok?'TUNTAS':'REMEDIAL'}</p></div></div></div>
+ <div class="card p-5 mt-3"><h2 class="hd text-lg text-emerald-300 mb-3">Catatan Penguasaan Materi</h2>
+ ${R.map((r,k)=>`<div class="flex gap-3 items-start py-2 border-b border-emerald-900 last:border-0"><span class="shrink-0 text-xs font-extrabold px-2 py-1 rounded ${res[k]?'bg-emerald-400 text-emerald-950':'bg-red-500 text-white'}">${res[k]?'TERCAPAI':'BELUM TERCAPAI'}</span>
+ <div class="text-sm"><b>Ronde ${k+1}: ${r.t}</b><br><span class="text-emerald-200/80">${res[k]?'Kamu sudah menguasai: '+r.topic+'.':'Pelajari kembali: '+r.topic+'. '+r.fb}</span></div></div>`).join('')}</div>
+ <div class="flex gap-3 mt-4 flex-wrap"><button class="btn" onclick="sClick();login()">Main Lagi ↺</button><button class="btn" style="background:#065f46;color:#d1fae5" onclick="window.print()">Cetak Rapor</button></div>`;
+}
+login();
+</script>
+</body>
+</html>
